@@ -1,0 +1,41 @@
+[build-system]
+requires = ["hatchling>=1.26"]
+build-backend = "hatchling.build"
+
+[project]
+name = "zimbra-mcp"
+version = "0.1.0"
+description = "Read mail and calendar through Zimbra using MCP"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+  "mcp>=1.0,<2",
+  "imap-tools>=1.10,<2",
+  "requests>=2.32,<3",
+  "icalendar>=6,<7",
+]
+
+[project.scripts]
+zimbra-mcp = "zimbra_mcp.server:main"
+
+[project.optional-dependencies]
+dev = ["mypy>=1.13", "pytest>=8", "ruff>=0.8"]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/zimbra_mcp"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 100
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+
+[tool.mypy]
+python_version = "3.11"
+files = ["src"]
+ignore_missing_imports = true
+check_untyped_defs = true
