@@ -88,6 +88,17 @@ def _env_bool(name: str) -> bool:
     return os.getenv(name, "").strip().lower() in {"1", "true", "yes"}
 
 
+def _https_url(name: str, value: str, *, forbid_admin: bool = False) -> str:
+    parts = urlsplit(value)
+    if parts.scheme != "https" or not parts.hostname:
+        raise ValueError(f"{name} must be an https:// URL")
+    if parts.username or parts.password:
+        raise ValueError(f"{name} must not embed credentials")
+    if forbid_admin and (parts.port == 7071 or "/admin" in parts.path.lower()):
+        raise ValueError(f"{name} must be the user endpoint, not the admin endpoint")
+    return value
+
+
 @dataclass(frozen=True)
 class Settings:
     """Connection settings loaded exclusively from environment variables."""
@@ -103,6 +114,8 @@ class Settings:
     allow_send: bool = False
     send_allowlist: tuple[str, ...] = ()
     state_dir: str = ""
+    soap_url: str = ""
+    allow_write: bool = False
 
     @classmethod
     def from_env(cls) -> Settings:
@@ -117,12 +130,10 @@ class Settings:
         if missing:
             raise ValueError(f"Missing required environment variables: {', '.join(missing)}")
 
-        caldav_url = os.environ["ZIMBRA_CALDAV_URL"]
-        parts = urlsplit(caldav_url)
-        if parts.scheme != "https" or not parts.hostname:
-            raise ValueError("ZIMBRA_CALDAV_URL must be an https:// URL")
-        if parts.username or parts.password:
-            raise ValueError("ZIMBRA_CALDAV_URL must not embed credentials")
+        caldav_url = _https_url("ZIMBRA_CALDAV_URL", os.environ["ZIMBRA_CALDAV_URL"])
+        soap_url = os.getenv("ZIMBRA_SOAP_URL", "").strip()
+        if soap_url:
+            soap_url = _https_url("ZIMBRA_SOAP_URL", soap_url, forbid_admin=True)
 
         allowlist = tuple(
             item.strip().lower()
@@ -141,6 +152,8 @@ class Settings:
             allow_send=_env_bool("ZIMBRA_ALLOW_SEND"),
             send_allowlist=allowlist,
             state_dir=os.getenv("ZIMBRA_STATE_DIR", "") or str(Path.home() / ".zimbra-mcp"),
+            soap_url=soap_url,
+            allow_write=_env_bool("ZIMBRA_ALLOW_WRITE"),
         )
 
 
@@ -648,7 +661,9 @@ def health_check(deep: bool = False) -> dict[str, Any]:
             "imap": f"{settings.imap_host}:{settings.imap_port}",
             "smtp": f"{settings.smtp_host}:{settings.smtp_port}",
             "caldav_host": urlsplit(settings.caldav_url).hostname,
+            "soap_host": urlsplit(settings.soap_url).hostname if settings.soap_url else None,
             "send_enabled": settings.allow_send,
+            "write_enabled": settings.allow_write,
             "send_allowlist_entries": len(settings.send_allowlist),
         },
         "metrics": dict(_METRICS),
@@ -673,6 +688,14 @@ def health_check(deep: bool = False) -> dict[str, Any]:
             )
         except Exception as error:
             checks["caldav"] = f"failed: {type(error).__name__}"
+        if settings.soap_url:
+            from zimbra_mcp import soap
+
+            try:
+                soap.soap_call(settings, "GetInfoRequest", {"sections": "mbox"}, soap.ACCOUNT_NS)
+                checks["soap"] = "ok"
+            except Exception as error:
+                checks["soap"] = f"failed: {type(error).__name__}"
         result["checks"] = checks
         if any(value != "ok" for value in checks.values()):
             result["status"] = "degraded"
@@ -689,5 +712,7 @@ def main() -> None:
     mcp.run(transport="stdio")
 
 
-if __name__ == "__main__":
-    main()
+# Importing the tools package registers the remaining tools on ``mcp`` above. It must stay at
+# the bottom: those modules import this one. Start the server via ``zimbra-mcp`` or
+# ``python -m zimbra_mcp`` (never ``python server.py``, which would load this module twice).
+from zimbra_mcp import tools as _tools  # noqa: E402,F401

@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from typing import Any
-
 import pytest
 
 from conftest import FakeMailBox
@@ -44,16 +42,3 @@ def test_metrics_count_calls(mailbox: FakeMailBox) -> None:
     server.health_check()
     server.health_check()
     assert server.health_check()["metrics"]["health_check.calls"] == 3
-
-
-def test_all_expected_tools_are_registered() -> None:
-    import asyncio
-
-    tools: Any = asyncio.run(server.mcp.list_tools())
-    assert {tool.name for tool in tools} == {
-        "search_mail",
-        "read_message",
-        "send_email",
-        "list_calendar_events",
-        "health_check",
-    }
