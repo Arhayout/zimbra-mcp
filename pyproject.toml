@@ -1,41 +1,66 @@
-[build-system]
-requires = ["hatchling>=1.26"]
-build-backend = "hatchling.build"
-
 [project]
 name = "zimbra-mcp"
 version = "0.1.0"
-description = "Read mail and calendar through Zimbra using MCP"
+description = "Stateless MCP server for Zimbra mail"
 readme = "README.md"
-requires-python = ">=3.11"
+requires-python = ">=3.12,<3.13"
 dependencies = [
-  "mcp>=1.0,<2",
-  "imap-tools>=1.10,<2",
-  "requests>=2.32,<3",
-  "icalendar>=6,<7",
+    "fastmcp==4.2.0",
+    "defusedxml>=0.7.1,<1.0",
+    "httpx[http2]>=0.28.1,<1.0",
+    "imap-tools>=1.11.0,<2.0",
+    "pydantic>=2.11.0,<3.0",
+]
+
+[project.optional-dependencies]
+ dev = [
+    "mypy>=1.15.0,<2.0",
+    "pytest>=8.3.0,<9.0",
+    "pytest-asyncio>=0.25.0,<1.0",
+    "respx>=0.22.0,<1.0",
+    "ruff>=0.11.0,<1.0",
+    "types-defusedxml>=0.7.0.20250822,<1.0",
 ]
 
 [project.scripts]
 zimbra-mcp = "zimbra_mcp.server:main"
 
-[project.optional-dependencies]
-dev = ["mypy>=1.13", "pytest>=8", "ruff>=0.8"]
+[tool.uv]
+default-groups = ["dev"]
 
-[tool.hatch.build.targets.wheel]
-packages = ["src/zimbra_mcp"]
-
-[tool.pytest.ini_options]
-testpaths = ["tests"]
+[dependency-groups]
+dev = [
+    "mypy>=1.15.0,<2.0",
+    "pytest>=8.3.0,<9.0",
+    "pytest-asyncio>=0.25.0,<1.0",
+    "respx>=0.22.0,<1.0",
+    "ruff>=0.11.0,<1.0",
+    "types-defusedxml>=0.7.0.20250822,<1.0",
+]
 
 [tool.ruff]
+target-version = "py312"
 line-length = 100
 src = ["src", "tests"]
 
 [tool.ruff.lint]
-select = ["E", "F", "I", "UP", "B"]
+select = ["E", "F", "I", "B", "UP", "ASYNC", "S"]
+ignore = ["S101"]
 
 [tool.mypy]
-python_version = "3.11"
-files = ["src"]
-ignore_missing_imports = true
-check_untyped_defs = true
+python_version = "3.12"
+strict = true
+mypy_path = "src"
+packages = ["zimbra_mcp"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+addopts = "-q"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/zimbra_mcp"]

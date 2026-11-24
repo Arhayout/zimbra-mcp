@@ -1,1 +1,3 @@
-"""Zimbra MCP server package."""
+"""Zimbra MCP server."""
+
+__version__ = "0.1.0"
